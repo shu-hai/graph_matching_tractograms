@@ -25,6 +25,56 @@ def distance_corresponding(A, B, correspondence):
     return np.array([bundles_distances_mam([A[i]], [B[correspondence[i]]]) for i in range(len(A))]).squeeze()
 
 
+def graph_matching(S_A, S_B, alpha=0.5, max_iter1=100, max_iter2=100,
+                   initialization='NN', similarity='1/x',
+                   epsilon=1.0e-8, verbose=True):
+    """Wrapper of the DSPFP algorithm to deal with streamlines. This code
+    add kinds of initializations meaningful for streamlines and
+    conversion from distances to similarities.
+    """
+    if verbose:
+        print("Compute graph matching between streamlines.")
+        print("Compute the distance matrix between streamlines in each set")
+
+    dm_A = bundles_distances_mam(S_A, S_A)
+    dm_B = bundles_distances_mam(S_B, S_B)
+
+    if initialization == 'NN':
+        tmp = bundles_distances_mam(S_A, S_B)
+        X_init = (tmp.max() + epsilon) / (tmp + epsilon)
+    elif initialization == 'random':
+        tmp = np.random.uniform(shape=(len(S_A), len(S_B)))
+        X_init = (tmp.max() + epsilon) / (tmp + epsilon)
+    else:
+        # flat initialization, default of DSPFP
+        X_init = None
+
+    # Wheter to use distances or similarities and, in case, which
+    # similarity function
+    if similarity == '1/x':
+        sm_A = (dm_A.max() + epsilon) / (dm_A + epsilon)
+        sm_B = (dm_B.max() + epsilon) / (dm_B + epsilon)
+    elif similarity == 'exp(-x)':
+        tmp = np.median(dm_A)
+        sm_A = np.exp(-dm_A * dm_A / tmp * tmp)
+        tmp = np.median(dm_B)
+        sm_B = np.exp(-dm_B * dm_B / tmp * tmp)
+    else:
+        # Don't use similarity
+        sm_A = dm_A
+        sm_B = dm_B
+
+    if verbose:
+        print("Compute graph-matching via DSPFP")
+
+    X = DSPFP_faster(sm_A, sm_B, alpha=alpha,
+                     max_iter1=max_iter1,
+                     max_iter2=max_iter2,
+                     X=X_init, verbose=verbose)
+    corresponding_streamlines = greedy_assignment(X).argmax(1)
+    return corresponding_streamlines
+
+
 if __name__ == '__main__':
     np.random.seed(2)
 
@@ -32,8 +82,8 @@ if __name__ == '__main__':
     # T_B_filename = 'data/HCP_subject124422_100Kseeds/tracks_dti_100K.trk'
 
     T_A_filename = 'data2/100307/Tractogram/tractogram_b1k_1.25mm_csd_wm_mask_eudx1M.trk'
-    # T_B_filename = 'data2/100408/Tractogram/tractogram_b1k_1.25mm_csd_wm_mask_eudx1M.trk'
-    T_B_filename = T_A_filename
+    T_B_filename = 'data2/100408/Tractogram/tractogram_b1k_1.25mm_csd_wm_mask_eudx1M.trk'
+    # T_B_filename = T_A_filename
 
 
     # 1) load T_A and T_B
@@ -54,12 +104,14 @@ if __name__ == '__main__':
     print("T_A: %s streamlines" % len(T_A))
     print("T_B: %s streamlines" % len(T_B))
 
-    # 1.2) Permuting the order of T_B and creating ground truth:
-    T_B_random_idx = np.random.permutation(len(T_B))
-    correspondence_ground_truth = np.argsort(T_B_random_idx)
-    T_B = T_B[T_B_random_idx]
-    assert((T_A[0] == T_B[correspondence_ground_truth[0]]).all())
-    
+    if T_A_filename == T_B_filename:
+        # 1.2) Permuting the order of T_B and creating ground truth:
+        print("Permuting the order of T_B and creating ground truth.")
+        T_B_random_idx = np.random.permutation(len(T_B))
+        correspondence_ground_truth = np.argsort(T_B_random_idx)
+        T_B = T_B[T_B_random_idx]
+        assert((T_A[0] == T_B[correspondence_ground_truth[0]]).all())
+
     # 2) Compute the dissimilarity representation of T_A and T_B
     print("Compute the dissimilarity representation of T_A")
     T_A_dr, prototypes_A = compute_dissimilarity(T_A)
@@ -67,7 +119,7 @@ if __name__ == '__main__':
     T_B_dr, prototypes_B = compute_dissimilarity(T_B)
 
     # 3) Compute the k-means clustering of T_A and T_B
-    k = 300
+    k = 1000
     print("Compute the k-means clustering of T_A and T_B, k=%s" % k)
     # 3.1) Generate k initial random centers
     T_A_centers = T_A_dr[np.random.permutation(len(T_A))[:k]]
@@ -154,8 +206,8 @@ if __name__ == '__main__':
         correspondence_gm[cluster_A_idx[corresponding_streamlines]] = cluster_B_idx
 
 
-    # 6) Filling the missing correspondences in T_A with the corresponding to
-    # their nearest neighbour in T_A
+    # 6) Filling the missing correspondences in T_A with the
+    # corresponding streamline to their nearest neighbour in T_A
     print("Filling the missing correspondences in T_A with the corresponding to their nearest neighbour in T_A")
     correspondence = correspondence_gm.copy()
     T_A_corresponding_idx = np.where(correspondence != -1)[0]
@@ -173,5 +225,5 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
     plt.interactive(True)
     plt.figure()
-    plt.hist(loss, bins=50)
+    plt.hist(distances, bins=50)
     plt.title("Distances between corresponding streamlines")
