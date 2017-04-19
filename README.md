@@ -16,4 +16,5 @@ For sake of convenience, the necessary code from those repositories is copied in
 Dependencies:
 - numpy
 - nibabel
+- dipy
 - sklearn
