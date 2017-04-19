@@ -26,7 +26,7 @@ def distance_corresponding(A, B, correspondence):
 
 
 def graph_matching(S_A, S_B, alpha=0.5, max_iter1=100, max_iter2=100,
-                   initialization='NN', similarity='exp(-x)',
+                   initialization='NN', similarity='1/x',
                    epsilon=1.0e-8, verbose=True):
     """Wrapper of the DSPFP algorithm to deal with streamlines. This code
     add kinds of initializations meaningful for streamlines and
@@ -40,11 +40,9 @@ def graph_matching(S_A, S_B, alpha=0.5, max_iter1=100, max_iter2=100,
     dm_B = bundles_distances_mam(S_B, S_B)
 
     if initialization == 'NN':
-        tmp = bundles_distances_mam(S_A, S_B)
-        X_init = (tmp.max() + epsilon) / (tmp + epsilon)
+        X_init = bundles_distances_mam(S_A, S_B)
     elif initialization == 'random':
-        tmp = np.random.uniform(shape=(len(S_A), len(S_B)))
-        X_init = (tmp.max() + epsilon) / (tmp + epsilon)
+        X_init = np.random.uniform(shape=(len(S_A), len(S_B)))
     else:
         # flat initialization, default of DSPFP
         X_init = None
@@ -54,11 +52,18 @@ def graph_matching(S_A, S_B, alpha=0.5, max_iter1=100, max_iter2=100,
     if similarity == '1/x':
         sm_A = (dm_A.max() + epsilon) / (dm_A + epsilon)
         sm_B = (dm_B.max() + epsilon) / (dm_B + epsilon)
+        if initialization == 'NN':
+            X_init = 1.0 / (1.0 + X_init)
+
     elif similarity == 'exp(-x)':
         tmp = np.median(dm_A)
-        sm_A = np.exp(-dm_A * dm_A / tmp * tmp)
+        sm_A = np.exp(-dm_A * dm_A / (tmp * tmp))
         tmp = np.median(dm_B)
-        sm_B = np.exp(-dm_B * dm_B / tmp * tmp)
+        sm_B = np.exp(-dm_B * dm_B / (tmp * tmp))
+        if initialization == 'NN':
+            tmp = np.median(X_init)
+            X_init = np.exp(-X_init * X_init / (tmp * tmp))
+
     else:
         # Don't use similarity
         sm_A = dm_A
@@ -185,14 +190,15 @@ if __name__ == '__main__':
                                                        max_iter2=max_iter2,
                                                        verbose=False)
             # invert result from B->A to A->B:
-            tmp = -np.ones(len(cluster_B), dtype=np.int)
+            tmp = -np.ones(len(cluster_A), dtype=np.int)
             for j, v in enumerate(corresponding_streamlines):
                 if v != -1:
                     tmp[v] = j
 
             corresponding_streamlines = tmp
 
-        correspondence_gm[cluster_B_idx[corresponding_streamlines]] = cluster_B_idx
+        tmp = corresponding_streamlines != -1
+        correspondence_gm[cluster_A_idx[tmp]] = cluster_B_idx[corresponding_streamlines[tmp]]
 
 
     # 6) Filling the missing correspondences in T_A with the
