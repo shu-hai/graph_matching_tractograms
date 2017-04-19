@@ -26,10 +26,15 @@ def distance_corresponding(A, B, correspondence):
 
 
 if __name__ == '__main__':
-    np.random.seed(0)
+    np.random.seed(2)
 
-    T_A_filename = 'data/HCP_subject124422_100Kseeds/tracks_dti_100K.trk'
-    T_B_filename = 'data/HCP_subject124422_100Kseeds/tracks_dti_100K.trk'
+    # T_A_filename = 'data/HCP_subject124422_100Kseeds/tracks_dti_100K.trk'
+    # T_B_filename = 'data/HCP_subject124422_100Kseeds/tracks_dti_100K.trk'
+
+    T_A_filename = 'data2/100307/Tractogram/tractogram_b1k_1.25mm_csd_wm_mask_eudx1M.trk'
+    # T_B_filename = 'data2/100408/Tractogram/tractogram_b1k_1.25mm_csd_wm_mask_eudx1M.trk'
+    T_B_filename = T_A_filename
+
 
     # 1) load T_A and T_B
     print("Loading %s" % T_A_filename)
@@ -38,8 +43,6 @@ if __name__ == '__main__':
     T_B, hdr_B = trackvis.read(T_B_filename, as_generator=False)
     T_A = np.array([s[0] for s in T_A], dtype=np.object)
     T_B = np.array([s[0] for s in T_B], dtype=np.object)
-    T_B_random_idx = np.random.permutation(len(T_B))
-    T_B = T_B[T_B_random_idx]
     print("T_A: %s streamlines" % len(T_A))
     print("T_B: %s streamlines" % len(T_B))
 
@@ -50,6 +53,12 @@ if __name__ == '__main__':
     T_B = np.array([s for s in T_B if length(s) >= threshold], dtype=np.object)
     print("T_A: %s streamlines" % len(T_A))
     print("T_B: %s streamlines" % len(T_B))
+
+    # 1.2) Permuting the order of T_B and creating ground truth:
+    T_B_random_idx = np.random.permutation(len(T_B))
+    correspondence_ground_truth = np.argsort(T_B_random_idx)
+    T_B = T_B[T_B_random_idx]
+    assert((T_A[0] == T_B[correspondence_ground_truth[0]]).all())
     
     # 2) Compute the dissimilarity representation of T_A and T_B
     print("Compute the dissimilarity representation of T_A")
@@ -94,15 +103,21 @@ if __name__ == '__main__':
     # sm_TAr = np.exp(-dm_TAr * dm_TAr / tmp * tmp)
     # tmp = np.median(dm_TBr)
     # sm_TBr = np.exp(-dm_TBr * dm_TBr / tmp * tmp)
+    epsilon = 1.0e-8
+    sm_TAr = (dm_TAr.max() + epsilon) / (dm_TAr + epsilon)
+    sm_TBr = (dm_TBr.max() + epsilon) / (dm_TBr + epsilon)
 
     # 4.2) Compute graph-matching between representatives
     print("Compute graph-matching between representatives")
     alpha = 0.5
     max_iter1 = 100
-    max_iter2 = 1000
-    X_clusters = DSPFP_faster(dm_TAr, dm_TBr, alpha=alpha,
+    max_iter2 = 100
+    tmp = bundles_distances_mam(T_A[T_A_representatives_idx], T_B[T_B_representatives_idx])
+    X_init_NN = (tmp.max() + epsilon) / (tmp + epsilon)
+    X_clusters = DSPFP_faster(sm_TAr, sm_TBr, alpha=alpha,
                               max_iter1=max_iter1,
-                              max_iter2=max_iter2)
+                              max_iter2=max_iter2,
+                              X=X_init_NN)
     corresponding_clusters = greedy_assignment(X_clusters).argmax(1)
 
     distance_clusters = distance_corresponding(T_A[T_A_representatives_idx],
@@ -123,11 +138,17 @@ if __name__ == '__main__':
         cluster_B = T_B[cluster_B_idx]
         dm_clA = bundles_distances_mam(cluster_A, cluster_A)
         dm_clB = bundles_distances_mam(cluster_B, cluster_B)
+        sm_clA = (dm_clA.max() + epsilon) / (dm_clA + epsilon)
+        sm_clB = (dm_clB.max() + epsilon) / (dm_clB + epsilon)
+        tmp = bundles_distances_mam(cluster_A, cluster_B)
+        X_init_NN = (tmp.max() + epsilon) / (tmp + epsilon)
         if len(cluster_A) >= len(cluster_B):
-            X = DSPFP_faster(dm_clA, dm_clB, alpha=alpha, verbose=False)
+            X = DSPFP_faster(sm_clA, sm_clB, alpha=alpha, verbose=False,
+                             X=X_init_NN)
             corresponding_streamlines = greedy_assignment(X).argmax(0)
         else:
-            X = DSPFP_faster(dm_clB, dm_clA, alpha=alpha, verbose=False)
+            X = DSPFP_faster(sm_clB, sm_clA, alpha=alpha, verbose=False,
+                             X=X_init_NN.T)
             corresponding_streamlines = greedy_assignment(X).argmax(1)
             
         correspondence_gm[cluster_A_idx[corresponding_streamlines]] = cluster_B_idx
@@ -144,9 +165,10 @@ if __name__ == '__main__':
     correspondence[T_A_missing_idx] = correspondence[T_A_corresponding_idx[T_A_missing_NN]]
 
 
-    # 7) Compute a loss to check the quality of result
-    loss = np.array([bundles_distances_mam([T_A[i]], [T_B[correspondence[i]]]) for i in range(len(T_A))]).squeeze()
-    print("Mean Loss: %s" % loss.mean())
+    # 7) Compute the mean distance of corresponding streamlines, to
+    # check the quality of the result
+    distances = distance_corresponding(T_A, T_B, correspondence)
+    print("Mean distance of corresponding streamlines: %s" % distances.mean())
 
     import matplotlib.pyplot as plt
     plt.interactive(True)
