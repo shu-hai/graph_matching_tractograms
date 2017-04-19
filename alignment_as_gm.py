@@ -26,7 +26,7 @@ def distance_corresponding(A, B, correspondence):
 
 
 def graph_matching(S_A, S_B, alpha=0.5, max_iter1=100, max_iter2=100,
-                   initialization='NN', similarity='1/x',
+                   initialization='NN', similarity='exp(-x)',
                    epsilon=1.0e-8, verbose=True):
     """Wrapper of the DSPFP algorithm to deal with streamlines. This code
     add kinds of initializations meaningful for streamlines and
@@ -71,18 +71,22 @@ def graph_matching(S_A, S_B, alpha=0.5, max_iter1=100, max_iter2=100,
                      max_iter1=max_iter1,
                      max_iter2=max_iter2,
                      X=X_init, verbose=verbose)
-    corresponding_streamlines = greedy_assignment(X).argmax(1)
+
+    ga = greedy_assignment(X)
+    corresponding_streamlines = ga.argmax(1)
+    unassigned = ga.sum(1)==0
+    corresponding_streamlines[unassigned] = -1
     return corresponding_streamlines
 
 
 if __name__ == '__main__':
     np.random.seed(2)
 
-    # T_A_filename = 'data/HCP_subject124422_100Kseeds/tracks_dti_100K.trk'
-    # T_B_filename = 'data/HCP_subject124422_100Kseeds/tracks_dti_100K.trk'
+    T_A_filename = 'data/HCP_subject124422_100Kseeds/tracks_dti_100K.trk'
+    T_B_filename = 'data/HCP_subject124422_100Kseeds/tracks_dti_100K.trk'
 
-    T_A_filename = 'data2/100307/Tractogram/tractogram_b1k_1.25mm_csd_wm_mask_eudx1M.trk'
-    T_B_filename = 'data2/100408/Tractogram/tractogram_b1k_1.25mm_csd_wm_mask_eudx1M.trk'
+    # T_A_filename = 'data2/100307/Tractogram/tractogram_b1k_1.25mm_csd_wm_mask_eudx1M.trk'
+    # T_B_filename = 'data2/100408/Tractogram/tractogram_b1k_1.25mm_csd_wm_mask_eudx1M.trk'
     # T_B_filename = T_A_filename
 
 
@@ -119,7 +123,7 @@ if __name__ == '__main__':
     T_B_dr, prototypes_B = compute_dissimilarity(T_B)
 
     # 3) Compute the k-means clustering of T_A and T_B
-    k = 1000
+    k = 300
     print("Compute the k-means clustering of T_A and T_B, k=%s" % k)
     # 3.1) Generate k initial random centers
     T_A_centers = T_A_dr[np.random.permutation(len(T_A))[:k]]
@@ -143,35 +147,13 @@ if __name__ == '__main__':
     T_B_representatives_idx = compute_centroids(T_B_dr, T_B_centers)
 
     # 4) Compute graph matching between T_A_representatives and T_B_representatives
-    print("Compute graph matching between T_A_representatives and T_B_representatives.")
-
-    # 4.1) Compute the distance matrix between T_A_representatives and T_B_representatives
-    print("Compute the distance matrix between T_A_representatives")
-    dm_TAr = bundles_distances_mam(T_A[T_A_representatives_idx], T_A[T_A_representatives_idx])
-    print("Compute the distance matrix between T_B_representatives")
-    dm_TBr = bundles_distances_mam(T_B[T_B_representatives_idx], T_B[T_B_representatives_idx])
-
-    # tmp = np.median(dm_TAr)
-    # sm_TAr = np.exp(-dm_TAr * dm_TAr / tmp * tmp)
-    # tmp = np.median(dm_TBr)
-    # sm_TBr = np.exp(-dm_TBr * dm_TBr / tmp * tmp)
-    epsilon = 1.0e-8
-    sm_TAr = (dm_TAr.max() + epsilon) / (dm_TAr + epsilon)
-    sm_TBr = (dm_TBr.max() + epsilon) / (dm_TBr + epsilon)
-
-    # 4.2) Compute graph-matching between representatives
-    print("Compute graph-matching between representatives")
     alpha = 0.5
     max_iter1 = 100
-    max_iter2 = 100
-    tmp = bundles_distances_mam(T_A[T_A_representatives_idx], T_B[T_B_representatives_idx])
-    X_init_NN = (tmp.max() + epsilon) / (tmp + epsilon)
-    X_clusters = DSPFP_faster(sm_TAr, sm_TBr, alpha=alpha,
-                              max_iter1=max_iter1,
-                              max_iter2=max_iter2,
-                              X=X_init_NN)
-    corresponding_clusters = greedy_assignment(X_clusters).argmax(1)
-
+    max_iter2 = 500
+    corresponding_clusters = graph_matching(T_A[T_A_representatives_idx],
+                                            T_B[T_B_representatives_idx],
+                                            alpha=alpha, max_iter1=max_iter1,
+                                            max_iter2=max_iter2)
     distance_clusters = distance_corresponding(T_A[T_A_representatives_idx],
                                                T_B[T_B_representatives_idx],
                                                corresponding_clusters)
@@ -188,22 +170,29 @@ if __name__ == '__main__':
         cluster_A = T_A[cluster_A_idx]
         cluster_B_idx = np.where(T_B_cluster_labels == corresponding_clusters[i])[0]
         cluster_B = T_B[cluster_B_idx]
-        dm_clA = bundles_distances_mam(cluster_A, cluster_A)
-        dm_clB = bundles_distances_mam(cluster_B, cluster_B)
-        sm_clA = (dm_clA.max() + epsilon) / (dm_clA + epsilon)
-        sm_clB = (dm_clB.max() + epsilon) / (dm_clB + epsilon)
-        tmp = bundles_distances_mam(cluster_A, cluster_B)
-        X_init_NN = (tmp.max() + epsilon) / (tmp + epsilon)
         if len(cluster_A) >= len(cluster_B):
-            X = DSPFP_faster(sm_clA, sm_clB, alpha=alpha, verbose=False,
-                             X=X_init_NN)
-            corresponding_streamlines = greedy_assignment(X).argmax(0)
+            corresponding_streamlines = graph_matching(cluster_A,
+                                                       cluster_B,
+                                                       alpha=alpha,
+                                                       max_iter1=max_iter1,
+                                                       max_iter2=max_iter2,
+                                                       verbose=False)
         else:
-            X = DSPFP_faster(sm_clB, sm_clA, alpha=alpha, verbose=False,
-                             X=X_init_NN.T)
-            corresponding_streamlines = greedy_assignment(X).argmax(1)
-            
-        correspondence_gm[cluster_A_idx[corresponding_streamlines]] = cluster_B_idx
+            corresponding_streamlines = graph_matching(cluster_B,
+                                                       cluster_A,
+                                                       alpha=alpha,
+                                                       max_iter1=max_iter1,
+                                                       max_iter2=max_iter2,
+                                                       verbose=False)
+            # invert result from B->A to A->B:
+            tmp = -np.ones(len(cluster_B), dtype=np.int)
+            for j, v in enumerate(corresponding_streamlines):
+                if v != -1:
+                    tmp[v] = j
+
+            corresponding_streamlines = tmp
+
+        correspondence_gm[cluster_B_idx[corresponding_streamlines]] = cluster_B_idx
 
 
     # 6) Filling the missing correspondences in T_A with the
