@@ -169,13 +169,11 @@ def graph_matching_two_clusters(cluster_A, cluster_B, alpha=0.5,
 if __name__ == '__main__':
     np.random.seed(0)
 
-    T_A_filename = 'data/HCP_subject124422_100Kseeds/tracks_dti_100K.trk'
-    T_B_filename = 'data/HCP_subject124422_100Kseeds/tracks_dti_100K.trk'
-
-    # T_A_filename = 'data2/100307/Tractogram/tractogram_b1k_1.25mm_csd_wm_mask_eudx1M.trk'
-    # T_B_filename = 'data2/100408/Tractogram/tractogram_b1k_1.25mm_csd_wm_mask_eudx1M.trk'
+    # T_A_filename = 'data/HCP_subject124422_100Kseeds/tracks_dti_100K.trk'
+    # T_B_filename = 'data/HCP_subject124422_100Kseeds/tracks_dti_100K.trk'
+    T_A_filename = 'data2/100307/Tractogram/tractogram_b1k_1.25mm_csd_wm_mask_eudx1M.trk'
+    T_B_filename = 'data2/100408/Tractogram/tractogram_b1k_1.25mm_csd_wm_mask_eudx1M.trk'
     # T_B_filename = T_A_filename
-
 
     # 1) load T_A and T_B
     print("Loading %s" % T_A_filename)
@@ -195,14 +193,6 @@ if __name__ == '__main__':
     print("T_A: %s streamlines" % len(T_A))
     print("T_B: %s streamlines" % len(T_B))
 
-    if T_A_filename == T_B_filename:  # only if A and B are the same:
-        # 1.2) Permuting the order of T_B and creating ground truth:
-        print("Permuting the order of T_B and creating ground truth.")
-        T_B_random_idx = np.random.permutation(len(T_B))
-        correspondence_ground_truth = np.argsort(T_B_random_idx)
-        T_B = T_B[T_B_random_idx]
-        assert((T_A[0] == T_B[correspondence_ground_truth[0]]).all())
-
     # 2) Compute the dissimilarity representation of T_A and T_B
     print("Computing the dissimilarity representation of T_A")
     T_A_dr, prototypes_A = compute_dissimilarity(T_A)
@@ -210,7 +200,7 @@ if __name__ == '__main__':
     T_B_dr, prototypes_B = compute_dissimilarity(T_B)
 
     # 3) Compute the k-means clustering of T_A and T_B
-    k = 300  # number of clusters
+    k = 1000  # number of clusters
     b = 100  # mini-batch size
     t = 100  # number of iterations
     print("Computing the k-means clustering of T_A and T_B, k=%s" % k)
@@ -222,7 +212,7 @@ if __name__ == '__main__':
     # 4) Compute graph matching between T_A_representatives and T_B_representatives
     alpha = 0.5
     max_iter1 = 100
-    max_iter2 = 500
+    max_iter2 = 100
     corresponding_clusters = graph_matching(T_A[T_A_representatives_idx],
                                             T_B[T_B_representatives_idx],
                                             alpha=alpha, max_iter1=max_iter1,
@@ -232,11 +222,8 @@ if __name__ == '__main__':
                                                corresponding_clusters)
     print("Mean distance between corresponding clusters: %s" % distance_clusters.mean())
 
-
     # 5) For each pair corresponding cluster, compute graph matching
     # between their streamlines
-
-    # # Parallel version:
     print("Compute graph-matching between streamlines of corresponding clusters")
     correspondence_gm = -np.ones(len(T_A), dtype=np.int)  # container of the results
     if joblib_available:
@@ -267,7 +254,6 @@ if __name__ == '__main__':
             tmp = corresponding_streamlines != -1
             correspondence_gm[cluster_A_idx[tmp]] = cluster_B_idx[corresponding_streamlines[tmp]]
 
-
     # 6) Filling the missing correspondences in T_A with the
     # corresponding streamline to their nearest neighbour in T_A
     print("Filling the missing correspondences in T_A with the corresponding to their nearest neighbour in T_A")
@@ -277,7 +263,6 @@ if __name__ == '__main__':
     T_A_corresponding_kdt = KDTree(T_A_dr[T_A_corresponding_idx])
     T_A_missing_NN = T_A_corresponding_kdt.query(T_A_dr[T_A_missing_idx], k=1, return_distance=False).squeeze()
     correspondence[T_A_missing_idx] = correspondence[T_A_corresponding_idx[T_A_missing_NN]]
-
 
     # 7) Compute the mean distance of corresponding streamlines, to
     # check the quality of the result
