@@ -108,14 +108,14 @@ def DSPFP_faster(A, B, C=0.0, D=0.0, lam=0.0, alpha=0.5, threshold1=1.0e-6,
             iter2 += 1
 
         if verbose:
-            print("%s) epsilon2 = %s" % (iter2, epsilon2))
+            print("epsilon2 = %s \t (iter2=%s)" % (epsilon2, iter2))
 
         X_new = (1.0 - alpha) * X + alpha * Y[:size1, :size2]
         X_new = X_new / X_new.max()
         epsilon1 = np.abs(X_new - X).max()
         X = X_new
         if verbose:
-            print("%s) epsilon1 = %s" % (iter1, epsilon1))
+            print("epsilon1 = %s \t (iter1=%s)" % (epsilon1, iter1))
 
         iter1 += 1
 
