@@ -8,7 +8,7 @@ doi:10.3389/fnins.2016.00554
 
 import numpy as np
 from nibabel import trackvis
-from dissimilarity import compute_dissimilarity
+from dissimilarity import compute_dissimilarity, dissimilarity
 from kmeans import mini_batch_kmeans, compute_labels, compute_centroids
 from sklearn.neighbors import KDTree
 from dipy.tracking.distances import bundles_distances_mam
@@ -49,11 +49,11 @@ def graph_matching(S_A, S_B, alpha=0.5, max_iter1=100, max_iter2=100,
         print("Computing graph matching between streamlines.")
         print("Computing the distance matrix between streamlines in each set")
 
-    dm_A = bundles_distances_mam(S_A, S_A)
-    dm_B = bundles_distances_mam(S_B, S_B)
+    dm_A = streamline_distance(S_A, S_A)
+    dm_B = streamline_distance(S_B, S_B)
 
     if initialization == 'NN':
-        X_init = bundles_distances_mam(S_A, S_B)
+        X_init = streamline_distance(S_A, S_B)
     elif initialization == 'random':
         X_init = np.random.uniform(shape=(len(S_A), len(S_B)))
     else:
@@ -97,13 +97,27 @@ def graph_matching(S_A, S_B, alpha=0.5, max_iter1=100, max_iter2=100,
     return corresponding_streamlines
 
 
+def streamline_distance(S_A, S_B=None, parallel=True):
+    """Wrapper to decide what streamline distance function to use. The
+    function computes the distance matrix between sets of
+    streamlines. This implementation provides optimiztions like
+    parallelization and avoiding useless computations when S_B is
+    None.
+    """
+    distance_function = bundles_distances_mam
+    if parallel:
+        return dissimilarity(S_A, S_B, distance_function)
+    else:
+        return distance_function(S_A, S_B)
+
+
 def distance_corresponding(A, B, correspondence):
     """Distance between streamlines in set A and the corresponding ones in
     B. The vector 'correspondence' has in position 'i' the index of
     the streamline in B that corresponds to A[i].
 
     """
-    return np.array([bundles_distances_mam([A[i]], [B[correspondence[i]]]) for i in range(len(A))]).squeeze()
+    return np.array([streamline_distance([A[i]], [B[correspondence[i]]], parallel=False) for i in range(len(A))]).squeeze()
 
 
 if __name__ == '__main__':
@@ -135,7 +149,7 @@ if __name__ == '__main__':
     print("T_A: %s streamlines" % len(T_A))
     print("T_B: %s streamlines" % len(T_B))
 
-    if T_A_filename == T_B_filename:  # only if A and B are the same
+    if T_A_filename == T_B_filename:  # only if A and B are the same:
         # 1.2) Permuting the order of T_B and creating ground truth:
         print("Permuting the order of T_B and creating ground truth.")
         T_B_random_idx = np.random.permutation(len(T_B))
