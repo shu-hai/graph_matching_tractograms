@@ -44,7 +44,7 @@ def clustering(S_dr, k, b=100, t=100):
 
 
 def graph_matching(S_A, S_B, alpha=0.5, max_iter1=100, max_iter2=100,
-                   initialization='NN', similarity='1/x',
+                   initialization='NN', similarity='exp(-x)',
                    epsilon=1.0e-8, verbose=True, parallel=True):
     """Wrapper of the DSPFP algorithm to deal with streamlines. In
     addition to calling DSPFP, this function adds initializations of
@@ -83,14 +83,15 @@ def graph_matching(S_A, S_B, alpha=0.5, max_iter1=100, max_iter2=100,
         sm_B = np.exp(-dm_B / tmp)
         if initialization == 'NN':
             tmp = np.median(X_init)
-            X_init = np.exp(-X_init * X_init / (tmp * tmp))
+            X_init = np.exp(-X_init / tmp)
 
     else:  # Don't use similarity
         sm_A = dm_A
         sm_B = dm_B
         if initialization == 'NN':
-            X_init = 1.0 / (1.0 + X_init)  # X_init needs similarity
-                                           # when NN
+            X_init = 1.0 / (1.0 + X_init)  # anyway X_init needs
+                                           # similarity when usign NN
+                                           # initialization
 
     if verbose:
         print("Computing graph-matching via DSPFP")
@@ -102,7 +103,7 @@ def graph_matching(S_A, S_B, alpha=0.5, max_iter1=100, max_iter2=100,
 
     ga = greedy_assignment(X)
     corresponding_streamlines = ga.argmax(1)
-    unassigned = ga.sum(1)==0
+    unassigned = (ga.sum(1) == 0)
     corresponding_streamlines[unassigned] = -1
     return corresponding_streamlines
 
