@@ -16,8 +16,8 @@ def loss(A, B, P, C=0.0, D=0.0, lam=0.0):
         lam * norm(C - P.dot(D))
 
 
-def DSPFP(A, B, C=0.0, D=0.0, lam=0.0, alpha=0.5, threshold1=1.0e-6,
-          threshold2=1.0e-6, X=None, Y=None, verbose=True, max_iter1=100,
+def DSPFP(A, B, C=0.0, D=0.0, lam=0.0, alpha=0.5, threshold1=1.0e-5,
+          threshold2=1.0e-5, X=None, Y=None, verbose=True, max_iter1=100,
           max_iter2=100):
     """The DSPFP algorithm for the subgraph matching problem, as proposed
     in the paper 'Doubly Stochastic Projected Fixed-Point Algorithm
