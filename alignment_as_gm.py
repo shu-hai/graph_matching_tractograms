@@ -45,6 +45,7 @@ def graph_matching(S_A, S_B, alpha=0.5, max_iter1=100, max_iter2=100,
     as well as some (optional) conversions from distances to
     similarities.
     """
+    assert(len(S_A) >= len(S_B))  # required by DSPFP
     if verbose:
         print("Computing graph matching between streamlines.")
         print("Computing the distance matrix between streamlines in each set")
@@ -120,6 +121,39 @@ def distance_corresponding(A, B, correspondence):
 
     """
     return np.array([streamline_distance([A[i]], [B[correspondence[i]]], parallel=False) for i in range(len(A))]).squeeze()
+
+
+def graph_matching_two_clusters(cluster_A, cluster_B, alpha=0.5,
+                                max_iter1=100, max_iter2=100):
+    """Wrapper of graph_matching() between the streamlines of two
+    clusters. This code is able two handle clusters of different sizes
+    and to invert the result of corresponding_streamlines, if
+    necessary.
+
+    """
+    if len(cluster_A) >= len(cluster_B):  # graph_matching(A, B)
+        corresponding_streamlines = graph_matching(cluster_A,
+                                                   cluster_B,
+                                                   alpha=alpha,
+                                                   max_iter1=max_iter1,
+                                                   max_iter2=max_iter2,
+                                                   verbose=False)
+    else:  # graph_matching(B, A)
+        corresponding_streamlines = graph_matching(cluster_B,
+                                                   cluster_A,
+                                                   alpha=alpha,
+                                                   max_iter1=max_iter1,
+                                                   max_iter2=max_iter2,
+                                                   verbose=False)
+        # invert result from B->A to A->B:
+        tmp = -np.ones(len(cluster_A), dtype=np.int)
+        for j, v in enumerate(corresponding_streamlines):
+            if v != -1:
+                tmp[v] = j
+
+        corresponding_streamlines = tmp
+
+    return corresponding_streamlines
 
 
 if __name__ == '__main__':
@@ -199,27 +233,10 @@ if __name__ == '__main__':
         cluster_A = T_A[cluster_A_idx]
         cluster_B_idx = np.where(T_B_cluster_labels == corresponding_clusters[i])[0]
         cluster_B = T_B[cluster_B_idx]
-        if len(cluster_A) >= len(cluster_B):
-            corresponding_streamlines = graph_matching(cluster_A,
-                                                       cluster_B,
-                                                       alpha=alpha,
-                                                       max_iter1=max_iter1,
-                                                       max_iter2=max_iter2,
-                                                       verbose=False)
-        else:
-            corresponding_streamlines = graph_matching(cluster_B,
-                                                       cluster_A,
-                                                       alpha=alpha,
-                                                       max_iter1=max_iter1,
-                                                       max_iter2=max_iter2,
-                                                       verbose=False)
-            # invert result from B->A to A->B:
-            tmp = -np.ones(len(cluster_A), dtype=np.int)
-            for j, v in enumerate(corresponding_streamlines):
-                if v != -1:
-                    tmp[v] = j
-
-            corresponding_streamlines = tmp
+        corresponding_streamlines = graph_matching_two_clusters(cluster_A,
+                                                                cluster_B,
+                                                                max_iter1=max_iter1,
+                                                                max_iter2=max_iter2)
 
         tmp = corresponding_streamlines != -1
         correspondence_gm[cluster_A_idx[tmp]] = cluster_B_idx[corresponding_streamlines[tmp]]
