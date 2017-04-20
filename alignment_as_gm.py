@@ -17,24 +17,37 @@ from DSPFP import DSPFP_faster, greedy_assignment
 from joblib import  Parallel, delayed
 
 
-def distance_corresponding(A, B, correspondence):
-    """Distance between streamlines in set A and the corresponding ones in
-    B. The vector 'correspondence' has in position 'i' the ID of the
-    streamline in B corresponding to A[i].
+def clustering(S_dr, k, b=100, t=100):
+    """Wrapper of the mini-batch k-means algorithm that combines multiple
+    basic functions into a convenient one.
     """
-    return np.array([bundles_distances_mam([A[i]], [B[correspondence[i]]]) for i in range(len(A))]).squeeze()
+    # Generate k random centers:
+    S_centers = S_dr[np.random.permutation(S_dr.shape[0])[:k]]
+
+    # Improve the k centers with mini_batch_kmeans
+    S_centers = mini_batch_kmeans(S_dr, S_centers, b=b, t=t)
+
+    # Assign the cluster labels to each streamline. The label is the
+    # index of the nearest center.
+    S_cluster_labels = compute_labels(S_dr, S_centers)
+
+    # Compute a cluster representive, for each cluster
+    S_representatives_idx = compute_centroids(S_dr, S_centers)
+    return S_representatives_idx, S_cluster_labels
 
 
 def graph_matching(S_A, S_B, alpha=0.5, max_iter1=100, max_iter2=100,
                    initialization='NN', similarity='1/x',
                    epsilon=1.0e-8, verbose=True):
-    """Wrapper of the DSPFP algorithm to deal with streamlines. This code
-    add kinds of initializations meaningful for streamlines and
-    conversion from distances to similarities.
+    """Wrapper of the DSPFP algorithm to deal with streamlines. In
+    addition to calling DSPFP, this function adds initializations of
+    the graph matching algorithm that are meaningful for streamlines,
+    as well as some (optional) conversions from distances to
+    similarities.
     """
     if verbose:
-        print("Compute graph matching between streamlines.")
-        print("Compute the distance matrix between streamlines in each set")
+        print("Computing graph matching between streamlines.")
+        print("Computing the distance matrix between streamlines in each set")
 
     dm_A = bundles_distances_mam(S_A, S_A)
     dm_B = bundles_distances_mam(S_B, S_B)
@@ -70,7 +83,7 @@ def graph_matching(S_A, S_B, alpha=0.5, max_iter1=100, max_iter2=100,
         sm_B = dm_B
 
     if verbose:
-        print("Compute graph-matching via DSPFP")
+        print("Computing graph-matching via DSPFP")
 
     X = DSPFP_faster(sm_A, sm_B, alpha=alpha,
                      max_iter1=max_iter1,
@@ -82,6 +95,15 @@ def graph_matching(S_A, S_B, alpha=0.5, max_iter1=100, max_iter2=100,
     unassigned = ga.sum(1)==0
     corresponding_streamlines[unassigned] = -1
     return corresponding_streamlines
+
+
+def distance_corresponding(A, B, correspondence):
+    """Distance between streamlines in set A and the corresponding ones in
+    B. The vector 'correspondence' has in position 'i' the index of
+    the streamline in B that corresponds to A[i].
+
+    """
+    return np.array([bundles_distances_mam([A[i]], [B[correspondence[i]]]) for i in range(len(A))]).squeeze()
 
 
 if __name__ == '__main__':
@@ -113,7 +135,7 @@ if __name__ == '__main__':
     print("T_A: %s streamlines" % len(T_A))
     print("T_B: %s streamlines" % len(T_B))
 
-    if T_A_filename == T_B_filename:
+    if T_A_filename == T_B_filename:  # only if A and B are the same
         # 1.2) Permuting the order of T_B and creating ground truth:
         print("Permuting the order of T_B and creating ground truth.")
         T_B_random_idx = np.random.permutation(len(T_B))
@@ -122,34 +144,20 @@ if __name__ == '__main__':
         assert((T_A[0] == T_B[correspondence_ground_truth[0]]).all())
 
     # 2) Compute the dissimilarity representation of T_A and T_B
-    print("Compute the dissimilarity representation of T_A")
+    print("Computing the dissimilarity representation of T_A")
     T_A_dr, prototypes_A = compute_dissimilarity(T_A)
-    print("Compute the dissimilarity representation of T_B")
+    print("Computing the dissimilarity representation of T_B")
     T_B_dr, prototypes_B = compute_dissimilarity(T_B)
 
     # 3) Compute the k-means clustering of T_A and T_B
-    k = 300
-    print("Compute the k-means clustering of T_A and T_B, k=%s" % k)
-    # 3.1) Generate k initial random centers
-    T_A_centers = T_A_dr[np.random.permutation(len(T_A))[:k]]
-    T_B_centers = T_B_dr[np.random.permutation(len(T_B))[:k]]
-
-    # 3.2) Improve the k centers with mini_batch_kmeans
+    k = 300  # number of clusters
     b = 100  # mini-batch size
     t = 100  # number of iterations
-    print("MiniBatchKMeans on T_A")
-    T_A_centers = mini_batch_kmeans(T_A_dr, T_A_centers, b=b, t=t)
-    print("MiniBatchKMeans on T_B")
-    T_B_centers = mini_batch_kmeans(T_B_dr, T_B_centers, b=b, t=t)
-
-    # 3.3) Assign the cluster labels, i.e. the nearest center, for
-    # each streamline.
-    T_A_cluster_labels = compute_labels(T_A_dr, T_A_centers)
-    T_B_cluster_labels = compute_labels(T_B_dr, T_B_centers)
-
-    # 3.4) Compute a cluster representive, for each cluster
-    T_A_representatives_idx = compute_centroids(T_A_dr, T_A_centers)
-    T_B_representatives_idx = compute_centroids(T_B_dr, T_B_centers)
+    print("Computing the k-means clustering of T_A and T_B, k=%s" % k)
+    print("mini-batch k-means on T_A")
+    T_A_representatives_idx, T_A_cluster_labels = clustering(T_A_dr, k=k, b=b, t=t)
+    print("mini-batch k-means on T_B")
+    T_B_representatives_idx, T_B_cluster_labels = clustering(T_B_dr, k=k, b=b, t=t)
 
     # 4) Compute graph matching between T_A_representatives and T_B_representatives
     alpha = 0.5
