@@ -169,6 +169,8 @@ def graph_matching_two_clusters(cluster_A, cluster_B, alpha=0.5,
 if __name__ == '__main__':
     np.random.seed(0)
 
+    k = 1000  # number of clusters
+
     # T_A_filename = 'data/HCP_subject124422_100Kseeds/tracks_dti_100K.trk'
     # T_B_filename = 'data/HCP_subject124422_100Kseeds/tracks_dti_100K.trk'
     T_A_filename = 'data2/100307/Tractogram/tractogram_b1k_1.25mm_csd_wm_mask_eudx1M.trk'
@@ -200,7 +202,6 @@ if __name__ == '__main__':
     T_B_dr, prototypes_B = compute_dissimilarity(T_B)
 
     # 3) Compute the k-means clustering of T_A and T_B
-    k = 1000  # number of clusters
     b = 100  # mini-batch size
     t = 100  # number of iterations
     print("Computing the k-means clustering of T_A and T_B, k=%s" % k)
@@ -220,7 +221,7 @@ if __name__ == '__main__':
     distance_clusters = distance_corresponding(T_A[T_A_representatives_idx],
                                                T_B[T_B_representatives_idx],
                                                corresponding_clusters)
-    print("Mean distance between corresponding clusters: %s" % distance_clusters.mean())
+    print("Median distance between corresponding clusters: %s" % np.median(distance_clusters))
 
     # 5) For each pair corresponding cluster, compute graph matching
     # between their streamlines
@@ -267,7 +268,7 @@ if __name__ == '__main__':
     # 7) Compute the mean distance of corresponding streamlines, to
     # check the quality of the result
     distances = distance_corresponding(T_A, T_B, correspondence)
-    print("Mean distance of corresponding streamlines: %s" % distances.mean())
+    print("Median distance of corresponding streamlines: %s" % np.median(distances))
 
     import matplotlib.pyplot as plt
     plt.interactive(True)
