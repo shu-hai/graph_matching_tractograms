@@ -6,6 +6,8 @@ doi:10.3389/fnins.2016.00554
 
 """
 
+from __future__ import print_function
+
 import numpy as np
 from nibabel import trackvis
 from dissimilarity import compute_dissimilarity, dissimilarity
@@ -14,7 +16,12 @@ from sklearn.neighbors import KDTree
 from dipy.tracking.distances import bundles_distances_mam
 from dipy.tracking.streamlinespeed import length
 from DSPFP import DSPFP_faster, greedy_assignment
-from joblib import  Parallel, delayed
+
+try:
+    from joblib import Parallel, delayed
+    joblib_available = True
+except ImportError:
+    joblib_available = False
 
 
 def clustering(S_dr, k, b=100, t=100):
@@ -38,7 +45,7 @@ def clustering(S_dr, k, b=100, t=100):
 
 def graph_matching(S_A, S_B, alpha=0.5, max_iter1=100, max_iter2=100,
                    initialization='NN', similarity='1/x',
-                   epsilon=1.0e-8, verbose=True):
+                   epsilon=1.0e-8, verbose=True, parallel=True):
     """Wrapper of the DSPFP algorithm to deal with streamlines. In
     addition to calling DSPFP, this function adds initializations of
     the graph matching algorithm that are meaningful for streamlines,
@@ -50,11 +57,11 @@ def graph_matching(S_A, S_B, alpha=0.5, max_iter1=100, max_iter2=100,
         print("Computing graph matching between streamlines.")
         print("Computing the distance matrix between streamlines in each set")
 
-    dm_A = streamline_distance(S_A, S_A)
-    dm_B = streamline_distance(S_B, S_B)
+    dm_A = streamline_distance(S_A, S_A, parallel=parallel)
+    dm_B = streamline_distance(S_B, S_B, parallel=parallel)
 
     if initialization == 'NN':
-        X_init = streamline_distance(S_A, S_B)
+        X_init = streamline_distance(S_A, S_B, parallel=parallel)
     elif initialization == 'random':
         X_init = np.random.uniform(size=(len(S_A), len(S_B)))
     else:
@@ -124,7 +131,8 @@ def distance_corresponding(A, B, correspondence):
 
 
 def graph_matching_two_clusters(cluster_A, cluster_B, alpha=0.5,
-                                max_iter1=100, max_iter2=100):
+                                max_iter1=100, max_iter2=100,
+                                parallel=True):
     """Wrapper of graph_matching() between the streamlines of two
     clusters. This code is able two handle clusters of different sizes
     and to invert the result of corresponding_streamlines, if
@@ -137,14 +145,16 @@ def graph_matching_two_clusters(cluster_A, cluster_B, alpha=0.5,
                                                    alpha=alpha,
                                                    max_iter1=max_iter1,
                                                    max_iter2=max_iter2,
-                                                   verbose=False)
+                                                   verbose=False,
+                                                   parallel=parallel)
     else:  # graph_matching(B, A)
         corresponding_streamlines = graph_matching(cluster_B,
                                                    cluster_A,
                                                    alpha=alpha,
                                                    max_iter1=max_iter1,
                                                    max_iter2=max_iter2,
-                                                   verbose=False)
+                                                   verbose=False,
+                                                   parallel=parallel)
         # invert result from B->A to A->B:
         tmp = -np.ones(len(cluster_A), dtype=np.int)
         for j, v in enumerate(corresponding_streamlines):
@@ -225,21 +235,37 @@ if __name__ == '__main__':
 
     # 5) For each pair corresponding cluster, compute graph matching
     # between their streamlines
-    print("Compute graph-matching between streamlines of corresponding clusters")
-    correspondence_gm = -np.ones(len(T_A), dtype=np.int)
-    for i in range(k):
-        print("Graph matching between streamlines of corresponding clusters: cl_A=%s <-> cl_B=%s" % (i, corresponding_clusters[i]))
-        cluster_A_idx = np.where(T_A_cluster_labels == i)[0]
-        cluster_A = T_A[cluster_A_idx]
-        cluster_B_idx = np.where(T_B_cluster_labels == corresponding_clusters[i])[0]
-        cluster_B = T_B[cluster_B_idx]
-        corresponding_streamlines = graph_matching_two_clusters(cluster_A,
-                                                                cluster_B,
-                                                                max_iter1=max_iter1,
-                                                                max_iter2=max_iter2)
 
-        tmp = corresponding_streamlines != -1
-        correspondence_gm[cluster_A_idx[tmp]] = cluster_B_idx[corresponding_streamlines[tmp]]
+    # # Parallel version:
+    print("Compute graph-matching between streamlines of corresponding clusters")
+    correspondence_gm = -np.ones(len(T_A), dtype=np.int)  # container of the results
+    if joblib_available:
+        print("Parallel version")
+        n_jobs = -1
+        clusters_A_idx = [np.where(T_A_cluster_labels == i)[0] for i in range(k)]
+        clusters_A = [T_A[clA_idx] for clA_idx in clusters_A_idx]
+        clusters_B_idx = [np.where(T_B_cluster_labels == corresponding_clusters[i])[0] for i in range(k)]
+        clusters_B = [T_B[clB_idx] for clB_idx in clusters_B_idx]
+        results = Parallel(n_jobs=n_jobs, verbose=51)(delayed(graph_matching_two_clusters)(clusters_A[i], clusters_B[i], alpha=alpha, max_iter1=max_iter1, max_iter2=max_iter2, parallel=False) for i in range(k))
+        # merge results
+        for i in range(k):
+            tmp = results[i] != -1
+            correspondence_gm[clusters_A_idx[i][tmp]] = clusters_B_idx[i][results[i][tmp]]
+
+    else:
+        for i in range(k):
+            print("Graph matching between streamlines of corresponding clusters: cl_A=%s <-> cl_B=%s" % (i, corresponding_clusters[i]))
+            cluster_A_idx = np.where(T_A_cluster_labels == i)[0]
+            cluster_A = T_A[cluster_A_idx]
+            cluster_B_idx = np.where(T_B_cluster_labels == corresponding_clusters[i])[0]
+            cluster_B = T_B[cluster_B_idx]
+            corresponding_streamlines = graph_matching_two_clusters(cluster_A,
+                                                                    cluster_B,
+                                                                    max_iter1=max_iter1,
+                                                                    max_iter2=max_iter2)
+
+            tmp = corresponding_streamlines != -1
+            correspondence_gm[cluster_A_idx[tmp]] = cluster_B_idx[corresponding_streamlines[tmp]]
 
 
     # 6) Filling the missing correspondences in T_A with the
