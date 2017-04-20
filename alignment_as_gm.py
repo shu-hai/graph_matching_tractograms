@@ -55,7 +55,7 @@ def graph_matching(S_A, S_B, alpha=0.5, max_iter1=100, max_iter2=100,
     if initialization == 'NN':
         X_init = streamline_distance(S_A, S_B)
     elif initialization == 'random':
-        X_init = np.random.uniform(shape=(len(S_A), len(S_B)))
+        X_init = np.random.uniform(size=(len(S_A), len(S_B)))
     else:
         # flat initialization, default of DSPFP
         X_init = None
@@ -63,24 +63,26 @@ def graph_matching(S_A, S_B, alpha=0.5, max_iter1=100, max_iter2=100,
     # Wheter to use distances or similarities and, in case, which
     # similarity function
     if similarity == '1/x':
-        sm_A = (dm_A.max() + epsilon) / (dm_A + epsilon)
-        sm_B = (dm_B.max() + epsilon) / (dm_B + epsilon)
+        sm_A = 1.0 / (1.0 + dm_A)
+        sm_B = 1.0 / (1.0 + dm_B)
         if initialization == 'NN':
             X_init = 1.0 / (1.0 + X_init)
 
     elif similarity == 'exp(-x)':
         tmp = np.median(dm_A)
-        sm_A = np.exp(-dm_A * dm_A / (tmp * tmp))
+        sm_A = np.exp(-dm_A / tmp)
         tmp = np.median(dm_B)
-        sm_B = np.exp(-dm_B * dm_B / (tmp * tmp))
+        sm_B = np.exp(-dm_B / tmp)
         if initialization == 'NN':
             tmp = np.median(X_init)
             X_init = np.exp(-X_init * X_init / (tmp * tmp))
 
-    else:
-        # Don't use similarity
+    else:  # Don't use similarity
         sm_A = dm_A
         sm_B = dm_B
+        if initialization == 'NN':
+            X_init = 1.0 / (1.0 + X_init)  # X_init needs similarity
+                                           # when NN
 
     if verbose:
         print("Computing graph-matching via DSPFP")
@@ -121,7 +123,7 @@ def distance_corresponding(A, B, correspondence):
 
 
 if __name__ == '__main__':
-    np.random.seed(2)
+    np.random.seed(0)
 
     T_A_filename = 'data/HCP_subject124422_100Kseeds/tracks_dti_100K.trk'
     T_B_filename = 'data/HCP_subject124422_100Kseeds/tracks_dti_100K.trk'
