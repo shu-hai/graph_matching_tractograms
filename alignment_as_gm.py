@@ -231,7 +231,7 @@ def graph_matching_all_corresponding_pairs(T_A, T_B, k,
 
 
 def fill_missing_correspondences(correspondence_gm, T_A_dr):
-    """After graph matching, in case some correspondeces are missing,
+    """After graph matching, in case some correspondences are missing,
     i.e. their target index is '-1', fill them following this idea:
     for a given streamline T_A[i], its correponding one in T_B is the
     one corresponding to the nearest neighbour of T_A[i] in T_A.
