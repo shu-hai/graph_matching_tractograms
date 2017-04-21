@@ -4,7 +4,9 @@ This is the code of the algorithm described in: Olivetti E, Sharmin N and Avesan
 This code takes two tractograms, T_A and T_B, as input and returns the correspondence between their streamlines. Technically, the algorithm returns a vector of streamlines IDs of T_B, such that the ID in position 'i' is the corresponding one of streamline with ID=i in T_A. The correspondence is computed by solving a graph-matching problem, as explained in the article above. As described in the article, even the fastest graph matching algorithm available today cannot address the size of a full tractogram. For this reason, the problem is solved in multiple steps:
 1. Each tractogram is clustered in k=1000 clusters.
 2. Graph-matching is done in order to find corresponding clusters across the two tractograms.
-3. For each pair of corresponding clusters, e.g. c_A and c_B, graph-matching is executed on their streamlines in order to find the corresponding streamlines between c_A and c_B.
+3. For each pair of corresponding clusters, e.g. cluster_A and cluster_B, graph-matching is executed on their streamlines in order to find the corresponding streamlines between c_A and c_B.
+
+The main script is <code>alignment_as_gm.py</code>. Start from there in order to experiment with your data.
 
 The code is built on the functionality available in other repositories:
 - https://github.com/emanuele/dissimilarity   (dissimilarity representation)
