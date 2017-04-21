@@ -199,7 +199,7 @@ def graph_matching_all_corresponding_pairs(T_A, T_B, k,
     print("Compute graph-matching between streamlines of corresponding clusters")
     correspondence_gm = -np.ones(len(T_A), dtype=np.int)  # container of the results
     if joblib_available:
-        print("Parallel version")
+        print("Parallel version: executing %s tasks in parallel" % k)
         n_jobs = -1
         clusters_A_idx = [np.where(T_A_cluster_labels == i)[0] for i in range(k)]
         clusters_A = [T_A[clA_idx] for clA_idx in clusters_A_idx]
@@ -308,14 +308,13 @@ def alignment_as_graph_matching(T_A_filename, T_B_filename,
 if __name__ == '__main__':
     np.random.seed(0)
 
-    T_A_filename = 'data/HCP_subject124422_100Kseeds/tracks_dti_100K.trk'
-    T_B_filename = 'data/HCP_subject124422_100Kseeds/tracks_dti_100K.trk'
-    # T_A_filename = 'data2/100307/Tractogram/tractogram_b1k_1.25mm_csd_wm_mask_eudx1M.trk'
-    # T_B_filename = 'data2/100408/Tractogram/tractogram_b1k_1.25mm_csd_wm_mask_eudx1M.trk'
-    # T_B_filename = T_A_filename
+    # T_A_filename = 'data/HCP_subject124422_100Kseeds/tracks_dti_100K.trk'
+    # T_B_filename = 'data/HCP_subject124422_100Kseeds/tracks_dti_100K.trk'
+    T_A_filename = 'data2/100307/Tractogram/tractogram_b1k_1.25mm_csd_wm_mask_eudx1M.trk'
+    T_B_filename = 'data2/100408/Tractogram/tractogram_b1k_1.25mm_csd_wm_mask_eudx1M.trk'
 
     # Main parameters:
-    k = 300  # number of clusters
+    k = 1000  # number of clusters, usually somewhat above sqrt(|T_A|) is optimal for efficiency.
     threshold_short_streamlines = 15.0
 
     # Additional internal parameters, no need to change them, usually:
