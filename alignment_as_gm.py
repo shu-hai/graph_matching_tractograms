@@ -336,10 +336,10 @@ if __name__ == '__main__':
                                                             max_iter2=max_iter1)
 
     print("Saving the result into correspondence.csv")
-    result = np.vstack([range(len(correspondence)), correspondence],
-                       dtype=np.int).T
-    np.savetxt("correspondence.csv", result, delimiter=",")
-    
+    result = np.vstack([range(len(correspondence)), correspondence]).T
+    np.savetxt("correspondence.csv", result, fmt='%d', delimiter=',',
+               header='ID_A,ID_B')
+
     import matplotlib.pyplot as plt
     plt.interactive(True)
     plt.figure()
