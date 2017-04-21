@@ -6,7 +6,7 @@ This code takes two tractograms, T_A and T_B, as input and returns the correspon
 2. Graph-matching is done in order to find corresponding clusters across the two tractograms.
 3. For each pair of corresponding clusters, e.g. cluster_A and cluster_B, graph-matching is executed on their streamlines in order to find the corresponding streamlines between c_A and c_B.
 
-The main script is <code>alignment_as_gm.py</code>. Start from there in order to experiment with your data.
+The main script is <code>alignment_as_gm.py</code>. Start from there in order to experiment with your data by passing the pathnames to the two tractograms in <code>T_A_filename</code> and <code>T_B_filename</code>.
 
 The code is built on the functionality available in other repositories:
 - https://github.com/emanuele/dissimilarity   (dissimilarity representation)
