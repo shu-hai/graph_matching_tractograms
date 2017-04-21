@@ -4,7 +4,8 @@ See: Olivetti E, Sharmin N and Avesani P (2016) Alignment of
 Tractograms As Graph Matching. Front. Neurosci. 10:554. 
 doi:10.3389/fnins.2016.00554
 
-Author: Emanuele Olivetti
+Copyright Emanuele Olivetti, 2017
+BSD License, 3 clauses.
 """
 
 from __future__ import print_function
@@ -306,6 +307,7 @@ def alignment_as_graph_matching(T_A_filename, T_B_filename,
 
 
 if __name__ == '__main__':
+    print(__doc__)
     np.random.seed(0)
 
     # T_A_filename = 'data/HCP_subject124422_100Kseeds/tracks_dti_100K.trk'
@@ -334,7 +336,8 @@ if __name__ == '__main__':
                                                             max_iter2=max_iter1)
 
     print("Saving the result into correspondence.csv")
-    result = np.vstack([range(len(correspondence)), correspondence]).T
+    result = np.vstack([range(len(correspondence)), correspondence],
+                       dtype=np.int).T
     np.savetxt("correspondence.csv", result, delimiter=",")
     
     import matplotlib.pyplot as plt
