@@ -128,7 +128,7 @@ def greedy_assignment(X):
     permutation matrix (P) from the result (X) of the optimization
     algorithm DSPFP.
     """
-    XX = X.copy()
+    XX = np.nan_to_num(X.copy())
     min = XX.min() - 1.0
     P = np.zeros(X.shape)
     while (XX > min).any():
