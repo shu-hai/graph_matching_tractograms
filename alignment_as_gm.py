@@ -70,7 +70,7 @@ def graph_matching(S_A, S_B, alpha=0.5, max_iter1=100, max_iter2=100,
     as well as some (optional) conversions from distances to
     similarities.
     """
-    assert(len(S_A) >= len(S_B))  # required by DSPFP
+    assert(len(S_B) >= len(S_A))  # required by DSPFP
     if verbose:
         print("Computing graph matching between streamlines.")
         print("Computing the distance matrix between streamlines in each set")
@@ -78,10 +78,13 @@ def graph_matching(S_A, S_B, alpha=0.5, max_iter1=100, max_iter2=100,
     dm_A = streamline_distance(S_A, S_A, parallel=parallel)
     dm_B = streamline_distance(S_B, S_B, parallel=parallel)
 
+    # Notice that the initialization transposes the matrix because the
+    # logic of DSPFP is DSPFP(B,A), which is opposite to that of our
+    # graph_matching(A,B):
     if initialization == 'NN':
-        X_init = streamline_distance(S_A, S_B, parallel=parallel)
+        X_init = streamline_distance(S_A, S_B, parallel=parallel).T
     elif initialization == 'random':
-        X_init = np.random.uniform(size=(len(S_A), len(S_B)))
+        X_init = np.random.uniform(size=(len(S_A), len(S_B))).T
     else:
         # flat initialization, default of DSPFP
         X_init = None
@@ -114,14 +117,17 @@ def graph_matching(S_A, S_B, alpha=0.5, max_iter1=100, max_iter2=100,
     if verbose:
         print("Computing graph-matching via DSPFP")
 
-    X = DSPFP_faster(sm_A, sm_B, alpha=alpha,
+    # We perform DSPFP(B,A) and not DSPFP(A,B), because the original
+    # algorithm has the opposite logic of what we need (see the
+    # paper):
+    X = DSPFP_faster(sm_B, sm_A, alpha=alpha,
                      max_iter1=max_iter1,
                      max_iter2=max_iter2,
                      X=X_init, verbose=verbose)
 
     ga = greedy_assignment(X)
-    corresponding_streamlines = ga.argmax(1)
-    unassigned = (ga.sum(1) == 0)
+    corresponding_streamlines = ga.argmax(0)
+    unassigned = (ga.sum(0) == 0)
     corresponding_streamlines[unassigned] = -1
     return corresponding_streamlines
 
@@ -158,7 +164,7 @@ def graph_matching_two_clusters(cluster_A, cluster_B, alpha=0.5,
     necessary.
 
     """
-    if len(cluster_A) >= len(cluster_B):  # graph_matching(A, B)
+    if len(cluster_A) <= len(cluster_B):  # graph_matching(A,B)
         corresponding_streamlines = graph_matching(cluster_A,
                                                    cluster_B,
                                                    alpha=alpha,
@@ -166,7 +172,7 @@ def graph_matching_two_clusters(cluster_A, cluster_B, alpha=0.5,
                                                    max_iter2=max_iter2,
                                                    verbose=False,
                                                    parallel=parallel)
-    else:  # graph_matching(B, A)
+    else:  # graph_matching(B,A)
         corresponding_streamlines = graph_matching(cluster_B,
                                                    cluster_A,
                                                    alpha=alpha,
