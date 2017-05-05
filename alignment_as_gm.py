@@ -323,7 +323,7 @@ if __name__ == '__main__':
 
     # Main parameters:
     k = 1000  # number of clusters, usually somewhat above sqrt(|T_A|) is optimal for efficiency.
-    threshold_short_streamlines = 15.0
+    threshold_short_streamlines = 0.0  # Beware: discarding streamlines affects IDs
 
     # Additional internal parameters, no need to change them, usually:
     b = 100
