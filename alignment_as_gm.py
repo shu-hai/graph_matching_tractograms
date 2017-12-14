@@ -302,6 +302,7 @@ def alignment_as_graph_matching(T_A_filename, T_B_filename,
                                                                max_iter2=max_iter2)
 
     # 6) Filling the missing correspondences in T_A with the
+    # correspondences of the nearest neighbors in T_A
     correspondence = fill_missing_correspondences(correspondence_gm, T_A_dr)
 
     # 7) Compute the mean distance of corresponding streamlines, to
